@@ -1,0 +1,2 @@
+[toolchain]
+channel = "nightly" # for bevy dynamic linking (faster compile times)
