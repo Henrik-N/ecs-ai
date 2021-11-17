@@ -8,4 +8,5 @@ edition = "2021"
 
 
 [dependencies]
-bevy = {versio = "0.5", dependencies = ["dynamic"] }
+bevy = {version = "0.5" }
+anyhow = { version = "1.0.45" }

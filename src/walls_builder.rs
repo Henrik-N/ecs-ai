@@ -1,11 +1,13 @@
+use std::borrow::BorrowMut;
 use crate::BlockedCoords;
 
 use std::io::Read;
 use bevy::prelude::*;
+use crate::game_assets::Mats;
 use crate::resources_and_components::*;
 use super::settings;
-use super::SQUARE_SIDE_SIZE;
-
+use crate::grid;
+use crate::grid::get_xy_coords_from_screen_space_position;
 
 #[derive(Default)]
 // tag
@@ -14,9 +16,11 @@ pub struct PreviewWallBlock {
 }
 
 
-pub struct WallsBuilder;
 
-impl Plugin for WallsBuilder {
+
+pub struct WallsBuilderPlugin;
+
+impl Plugin for WallsBuilderPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app
             .add_startup_system(setup.system())
@@ -33,7 +37,7 @@ fn setup(mut cmd: Commands,
          mut materials: ResMut<Assets<ColorMaterial>>) {
     // wall
     let wall_mat = materials.add(Color::rgb(0.8, 0.8, 0.8).into());
-    let square = square_sprite();
+    let square = grid::square_sprite();
 
     // preview block (shown when hovering around with the mouse)
     cmd.spawn_bundle(SpriteBundle {
@@ -45,31 +49,6 @@ fn setup(mut cmd: Commands,
         .insert(PreviewWallBlock { enabled: true });
 }
 
-
-pub mod grid {
-    use bevy::prelude::*;
-    use crate::SQUARE_SIDE_SIZE;
-
-    pub fn get_xy_coords(pos: &Vec2) -> (u32, u32) {
-        ((pos.x / SQUARE_SIDE_SIZE) as u32,
-         (pos.y / SQUARE_SIDE_SIZE) as u32)
-    }
-
-    pub fn get_aligned_pos_from_coords(xy_cords: &(u32, u32), sprite: &Sprite) -> Vec2 {
-        let x_coord = xy_cords.0 as f32 * SQUARE_SIDE_SIZE;
-        let y_coord = xy_cords.1 as f32 * SQUARE_SIDE_SIZE;
-
-        Vec2::new(x_coord as f32, y_coord as f32)
-            - Vec2::new(
-            crate::settings::WINDOW_WIDTH / 2.,
-            crate::settings::WINDOW_HEIGHT / 2.)
-            + Vec2::new(sprite.size.x / 2., sprite.size.y / 2.)
-    }
-
-}
-use grid::*;
-
-
 fn preview_wall_block_mouse_follow(mouse_pos: Res<MousePos>, mut q: Query<(&mut Transform, &Sprite, &PreviewWallBlock)>) {
     if let Ok((mut transform, sprite, wall_block)) = q.single_mut() {
         if !wall_block.enabled {
@@ -77,8 +56,8 @@ fn preview_wall_block_mouse_follow(mouse_pos: Res<MousePos>, mut q: Query<(&mut 
         }
 
         let mouse_pos: Vec2 = mouse_pos.get();
-        let xy_coords = get_xy_coords(&mouse_pos);
-        let aligned_cords = get_aligned_pos_from_coords(&xy_coords, &sprite);
+        let xy_coords = grid::get_xy_coords_from_screen_space_position(&mouse_pos).into();
+        let aligned_cords = grid::get_aligned_pos_from_coords(&xy_coords);
 
         let translation = Vec3::new(aligned_cords.x, aligned_cords.y, 0.);
 
@@ -86,45 +65,65 @@ fn preview_wall_block_mouse_follow(mouse_pos: Res<MousePos>, mut q: Query<(&mut 
     }
 }
 
-
 fn construct_wall_on_left_mouse_click(
     mut cmd: Commands,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    mats: Res<Mats>,
     mouse_button_input: Res<Input<MouseButton>>,
     mouse_pos: Res<MousePos>,
     mut blocked_coordinates: ResMut<BlockedCoords>) {
-
-
-    let construct = mouse_button_input.pressed(MouseButton::Left);
+    let (construct, destroy) =
+        (mouse_button_input.pressed(MouseButton::Left),
+         mouse_button_input.pressed(MouseButton::Right));
 
     if construct {
-        let xy_coords = get_xy_coords(&mouse_pos.get());
+        let xy_coords = grid::get_xy_coords_from_screen_space_position(&mouse_pos.get()).into();
 
-        // only spawn new wall there's not already a wall at this location
-        if blocked_coordinates.0.contains(&xy_coords) {
-            return;
+        // only add if there isn't one already at that location
+        if !blocked_coordinates.0.contains(&xy_coords) {
+            blocked_coordinates.0.push(xy_coords);
+            update_save_file(blocked_coordinates);
+
+            let square_sprite = grid::square_sprite();
+            let material = mats.get("gray");
+            let spawn_pos = grid::get_aligned_pos_from_coords(&xy_coords);
+
+            let cmd_borrow: &mut Commands = cmd.borrow_mut();
+
+            spawn_wall(
+                &mut cmd,
+                SpawnWallData {
+                    spawn_pos,
+                    spawn_coords: xy_coords.into(),
+                    sprite: square_sprite,
+                    material,
+                });
         }
-
-        blocked_coordinates.0.push(xy_coords);
-
-        update_save_file(blocked_coordinates);
-
-        let square_sprite = square_sprite();
-        let wall_mat = materials.add(Color::rgb(0.8, 0.8, 0.8).into());
-
-        let pos = get_aligned_pos_from_coords(&xy_coords, &square_sprite);
-
-        cmd.spawn_bundle(SpriteBundle {
-            material: wall_mat,
-            transform: Transform::from_translation(Vec3::new(pos.x, pos.y, 0.)),
-            sprite: square_sprite,
-            ..Default::default()
-        });
     }
 }
 
-fn square_sprite() -> Sprite {
-    Sprite::new(Vec2::new(SQUARE_SIDE_SIZE, SQUARE_SIDE_SIZE))
+
+struct SpawnWallData {
+    spawn_pos: Vec2,
+    spawn_coords: GridCoord,
+    sprite: Sprite,
+    material: Handle<ColorMaterial>,
+}
+
+/// Spawns a block with a static collider
+fn spawn_wall(
+    mut cmd: &mut Commands,
+    data: SpawnWallData) {
+    cmd
+        .spawn_bundle(SpriteBundle {
+            material: data.material,
+            transform: Transform::from_translation(
+                Vec3::new(data.spawn_pos.x, data.spawn_pos.y, 0.)),
+            sprite: data.sprite.clone(),
+            ..Default::default()
+        })
+        .insert(SpriteCollider::Static)
+        .insert(data.spawn_coords)
+    ;
 }
 
 
@@ -137,8 +136,8 @@ fn update_save_file(blocked_coordinates: ResMut<BlockedCoords>) {
 
     let mut file_contents = String::new();
 
-    blocked_coordinates.0.iter().for_each(|(x, y)| {
-        file_contents += &format!("{},{} ", x, y);
+    blocked_coordinates.0.iter().for_each(|xy| {
+        file_contents += &format!("{},{} ", xy.x, xy.y);
     });
 
     let path = Path::new(SAVE_FILE_PATH);
@@ -149,7 +148,7 @@ fn update_save_file(blocked_coordinates: ResMut<BlockedCoords>) {
 
 fn read_save_file_on_middle_mouse_click(
     mut cmd: Commands,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    mats: Res<Mats>,
     input: Res<Input<MouseButton>>,
     mut blocked_coordinates: ResMut<BlockedCoords>,
 ) {
@@ -172,29 +171,40 @@ fn read_save_file_on_middle_mouse_click(
 
         let coords = buffer.split_whitespace();
 
-        for c in coords {
-            let c = c.to_owned();
-            let (x, y) = c.split_once(",").expect("coudln't split");
+        // find which coordinates to spawn new blocks at
+        let coords_to_spawn_at = coords.into_iter().filter_map(|coord: &str| {
+            let coord = coord.to_owned();
+            let (x, y): (&str, &str) = coord.split_once(",").expect("coudln't split");
 
-            let x = x.parse::<u32>().expect("couldn't parse");
-            let y = y.parse::<u32>().expect("couldn't parse");
+            let xy: GridCoord = (x.parse::<u32>().expect("couldn't parse"),
+                                 y.parse::<u32>().expect("couldn't parse"))
+                .into();
 
-            blocked_coordinates.0.push((x, y))
-        }
+            if !blocked_coordinates.0.contains(&xy) {
+                Some(xy)
+            } else {
+                None
+            }
+        }).collect::<Vec<GridCoord>>();
 
-        let square_sprite = square_sprite();
-        let wall_mat = materials.add(Color::rgb(0.8, 0.8, 0.8).into());
 
-        for block in blocked_coordinates.0.iter() {
-            let pos = get_aligned_pos_from_coords(&block, &square_sprite);
+        // spawn new blocks
+        let square_sprite = grid::square_sprite();
+        let wall_mat = mats.get("gray");
 
-            cmd.spawn_bundle(SpriteBundle {
-                material: wall_mat.clone(),
-                transform: Transform::from_translation(
-                    Vec3::new(pos.x, pos.y, 0.)),
-                sprite: square_sprite.clone(),
-                ..Default::default()
-            });
-        }
+        coords_to_spawn_at.into_iter().for_each(|coord| {
+            blocked_coordinates.0.push(coord.clone());
+
+            let pos = grid::get_aligned_pos_from_coords(&coord);
+
+            spawn_wall(
+                &mut cmd,
+                SpawnWallData {
+                    spawn_pos: pos,
+                    spawn_coords: coord,
+                    sprite: square_sprite.clone(),
+                    material: wall_mat.clone(),
+                });
+        });
     }
 }

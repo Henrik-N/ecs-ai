@@ -1,40 +1,59 @@
 // General resources and components
-
-
 use bevy::prelude::*;
 
 
-enum Collider {
-    Solid,
-}
-impl Default for Collider {
-    fn default() -> Self {
-        Self::Solid
-    }
-}
-
 // Tag components -------
-pub struct PlayerTag;
+
+pub struct Player {
+    pub movement_speed: f32,
+}
 
 
 // Components ----------------
 
-
-#[derive(Bundle, Default)]
-struct BlockedBlock {
-    sprite_bundle: SpriteBundle,
-    collider: Collider,
+#[derive(Debug, Eq, PartialEq)]
+pub enum SpriteCollider {
+    Static,
+    Dynamic
 }
 
-#[derive(Default)]
-pub struct Movement {
-    pub speed: f32,
+#[derive(Debug, Default, Clone)]
+pub struct Velocity(pub Vec2);
+impl From<Vec3> for Velocity {
+    fn from(v: Vec3) -> Self {
+        Self(Vec2::new(v.x, v.y))
+    }
+}
+impl From<Vec2> for Velocity {
+    fn from(v: Vec2) -> Self {
+        Self(v)
+    }
 }
 
+
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
+pub struct GridCoord {
+    pub x: u32,
+    pub y: u32,
+}
+impl GridCoord {
+    pub fn new(x: u32, y: u32) -> Self {
+        Self {x, y}
+    }
+}
+impl From<(u32, u32)> for GridCoord {
+    fn from((x, y): (u32, u32)) -> Self {
+        Self{x, y}
+    }
+}
 
 // Resources ----------------
 
 #[derive(Default)]
+pub struct BlockedCoords(pub Vec<GridCoord>);
+
+
+#[derive(Debug, Default)]
 pub struct MousePos(pub Vec2);
 impl MousePos {
     pub fn get(&self) -> Vec2 {
@@ -42,8 +61,7 @@ impl MousePos {
     }
 }
 
-
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct AxisInput {
     pub axis: Vec2,
 }

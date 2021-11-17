@@ -39,8 +39,11 @@ fn update_mouse_position(
 }
 
 
-fn axis_input(keyboard_input: Res<Input<KeyCode>>,
-              mut axis_input: ResMut<AxisInput>) {
+fn axis_input(
+    keyboard_input: Res<Input<KeyCode>>,
+    mut axis_input: ResMut<AxisInput>,
+    mut q: Query<(&mut Velocity), With<Player>>) {
+
     let mut axis = Vec2::default();
 
     if keyboard_input.pressed(KeyCode::A) {
