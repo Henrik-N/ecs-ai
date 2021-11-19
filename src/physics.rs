@@ -12,26 +12,26 @@ use crate::util::*;
 pub struct FixedUpdateStage;
 
 
-pub struct PhysicsPlugin;
-
-impl PhysicsPlugin {
-    pub const DEPENDENCY: &'static str = "Physics";
-}
-
-impl Plugin for PhysicsPlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        app.add_system_set(SystemSet::new()
-            .label(Self::DEPENDENCY)
-            .after(crate::movement::MovementPlugin::DEPENDENCY)
-            //.with_system(check_collisions.system())
-        );
-    }
-}
-
-
-struct CollisionImpact {
-    entity: Entity,
-}
+//pub struct PhysicsPlugin;
+//
+//impl PhysicsPlugin {
+//    pub const DEPENDENCY: &'static str = "Physics";
+//}
+//
+//impl Plugin for PhysicsPlugin {
+//    fn build(&self, app: &mut AppBuilder) {
+//        app.add_system_set(SystemSet::new()
+//            .label(Self::DEPENDENCY)
+//            .after(crate::movement::MovementPlugin::DEPENDENCY)
+//            //.with_system(check_collisions.system())
+//        );
+//    }
+//}
+//
+//
+//struct CollisionImpact {
+//    entity: Entity,
+//}
 
 
 //fn check_collisions(

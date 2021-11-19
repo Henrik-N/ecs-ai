@@ -16,6 +16,7 @@ use bevy::{
     render::pass::ClearColor,
     sprite::collide_aabb::{collide, Collision},
 };
+use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::utils::HashSet;
 use crate::game_assets::{Mats};
 
@@ -54,13 +55,17 @@ fn main() {
     App::build()
         .add_plugin(settings::AppSettings)
         .add_plugins(DefaultPlugins)
+        // diagnostics
+        //.add_plugin(FrameTimeDiagnosticsPlugin::default())
+        //.add_plugin(LogDiagnosticsPlugin::default())
+        // disagnostics end
         .add_plugin(game_assets::GameAssets)
         .add_startup_system(setup.system())
         .add_plugin(input::PlayerInputPlugin)
         .insert_resource(BlockedCoords::default())
         .add_plugin(walls_builder::WallsBuilderPlugin)
         .add_plugin(movement::MovementPlugin)
-        .add_plugin(physics::PhysicsPlugin)
+        .add_plugin(movement::PhysicsPlugin)
 
         .run();
 }

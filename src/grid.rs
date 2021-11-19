@@ -31,3 +31,15 @@ pub fn get_aligned_pos_from_coords(xy_cords: &GridCoord) -> Vec2 {
 pub fn square_sprite() -> Sprite {
     Sprite::new(Vec2::new(SQUARE_SIDE_SIZE, SQUARE_SIDE_SIZE))
 }
+
+pub fn is_coordinate_within_borders(coord: &GridCoord) -> bool {
+    if coord.x < 0 || coord.y < 0 {
+        return false;
+    }
+    let count_x = (WINDOW_WIDTH / SQUARE_SIDE_SIZE) as u32;
+    let count_y = (WINDOW_HEIGHT / SQUARE_SIDE_SIZE) as u32;
+    if coord.x < count_x && coord.y < count_y {
+        return true;
+    }
+    false
+}

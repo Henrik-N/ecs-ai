@@ -26,7 +26,6 @@ impl Plugin for PlayerInputPlugin {
     }
 }
 
-
 fn update_mouse_position(
     mut cursor_moved_events: EventReader<CursorMoved>,
     mut mouse_loc: ResMut<MousePos>,
@@ -42,7 +41,8 @@ fn update_mouse_position(
 fn axis_input(
     keyboard_input: Res<Input<KeyCode>>,
     mut axis_input: ResMut<AxisInput>,
-    mut q: Query<(&mut Velocity), With<Player>>) {
+    mut q: Query<(&mut Velocity), With<Player>>,
+) {
 
     let mut axis = Vec2::default();
 
