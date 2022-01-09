@@ -1,138 +1,149 @@
 #![allow(unused)]
 
-mod walls_builder;
-mod input;
-mod resources_and_components;
-mod grid;
+mod application;
 mod game_assets;
-mod physics;
+mod game_state;
+mod grid_plugin;
+mod input;
+mod maze;
 mod movement;
+mod physics;
+mod resources_and_components;
 mod util;
 
 use resources_and_components::*;
+use std::borrow::BorrowMut;
 
+use crate::game_assets::Mats;
+use crate::grid_plugin::GridCoord;
+use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
+use bevy::utils::HashSet;
 use bevy::{
+    log,
     prelude::*,
     render::pass::ClearColor,
     sprite::collide_aabb::{collide, Collision},
 };
-use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
-use bevy::utils::HashSet;
-use crate::game_assets::{Mats};
-
-
-mod settings {
-    use bevy::prelude::*;
-    use bevy::window::WindowMode;
-
-    const CLEAR_COLOR: Color = Color::rgb(0.2, 0.2, 0.2);
-    pub const WINDOW_WIDTH: f32 = 1200.;
-    pub const WINDOW_HEIGHT: f32 = 700.;
-
-    pub struct AppSettings;
-
-    impl Plugin for AppSettings {
-        fn build(&self, app: &mut AppBuilder) {
-            app
-                .insert_resource(ClearColor(CLEAR_COLOR))
-                .insert_resource(WindowDescriptor {
-                    width: WINDOW_WIDTH,
-                    height: WINDOW_HEIGHT,
-                    title: "Yeet".to_owned(),
-                    vsync: false,
-                    resizable: false,
-                    decorations: true,
-                    cursor_visible: true,
-                    cursor_locked: false,
-                    ..Default::default()
-                })
-            ;
-        }
-    }
-}
 
 fn main() {
     App::build()
-        .add_plugin(settings::AppSettings)
+        .add_plugin(application::Application)
         .add_plugins(DefaultPlugins)
         // diagnostics
         //.add_plugin(FrameTimeDiagnosticsPlugin::default())
         //.add_plugin(LogDiagnosticsPlugin::default())
         // disagnostics end
         .add_plugin(game_assets::GameAssets)
-        .add_startup_system(setup.system())
+        .add_startup_system(setup_entities.system())
         .add_plugin(input::PlayerInputPlugin)
-        .insert_resource(BlockedCoords::default())
-        .add_plugin(walls_builder::WallsBuilderPlugin)
+        .add_plugin(maze::MazePlugin)
+        .add_plugin(grid_plugin::GridPlugin)
+        //.add_plugin(walls_builder::WallsBuilderPlugin)
         .add_plugin(movement::MovementPlugin)
         .add_plugin(movement::PhysicsPlugin)
-
         .run();
 }
 
-#[derive(Debug, Default)]
-struct EnemyTag;
-
-
-fn setup(
-    mut cmd: Commands,
-    mut mats: Res<Mats>,
-) {
-
-    // add camera
-    cmd.spawn_bundle(OrthographicCameraBundle::new_2d());
-    cmd.spawn_bundle(UiCameraBundle::default());
+fn setup_entities(mut cmd: Commands, mut mats: Res<Mats>) {
+    Camera2D::spawn(&mut cmd);
+    Player::spawn(&mut cmd, &mut mats);
+    Enemy::spawn(&mut cmd, &mut mats);
+}
 
 
 
-    let sprite = grid::square_sprite();
-
-    let mat = mats.get("blue");
-    let spawn_pos = Vec2::new(0., -215.);
-
-    let grid_coord: GridCoord =
-        grid::get_xy_coords_from_screen_space_position(&spawn_pos).into();
 
 
-    // spawn player entity
-    let player = cmd.spawn_bundle(SpriteBundle {
-        material: mat,
-        transform: Transform::from_xyz(spawn_pos.x, spawn_pos.y, 0.),
-        sprite: sprite.clone(),
-        ..Default::default()
-    })
+use entities::*;
+use crate::maze::MazeResource;
 
-        .insert(SpriteCollider::Dynamic)
-        .insert(grid_coord)
-        .insert(Velocity::default())
-        .insert(Player {movement_speed: 500.})
-        .id()
-        ;
+mod entities {
+    use crate::movement::MovementSpeed;
+    use crate::{grid_plugin, GridCoord, Mats, MazeResource, SpriteCollider, Velocity};
+    use bevy::log;
+    use bevy::prelude::*;
 
+    pub struct Camera2D;
 
+    impl Camera2D {
+        pub fn spawn(cmd: &mut Commands) {
+            cmd.spawn_bundle(OrthographicCameraBundle::new_2d());
+            cmd.spawn_bundle(UiCameraBundle::default());
+        }
+    }
 
-    let start_pos = Vec2::new(0., -12.);
-    let mat = mats.get("red");
+    pub struct Player;
 
+    impl Player {
+        //pub fn sprite_bundle(mats: &Res<Mats>, maze_resource: &Res<MazeResource>) -> SpriteBundle {
+        //    let sprite = maze_resource.square_sprite();
 
-    let grid_coord: GridCoord =
-        grid::get_xy_coords_from_screen_space_position(&start_pos).into();
+        //    SpriteBundle {
+        //        material: mats.get("blue"),
+        //        transform: Transform::from_xyz(spawn_pos.x, spawn_pos.y, 0.),
+        //        sprite,
+        //        ..Default::default()
+        //    }
+        //}
 
-    // spawn enemy entity
-    let enemy = cmd.spawn_bundle(SpriteBundle {
-        material: mat,
-        transform: Transform::from_xyz(start_pos.x, start_pos.y, 0.),
-        sprite: sprite.clone(),
-        ..Default::default()
-    })
-        .insert(SpriteCollider::Dynamic)
-        .insert(grid_coord)
-        .insert(Velocity::default())
-        .insert(EnemyTag::default())
-        .id()
-        ;
+        pub(super) fn spawn(cmd: &mut Commands, mats: &mut Res<Mats>) {
+            let sprite = grid_plugin::square_sprite();
 
+            let mat = mats.get("blue");
+            let spawn_pos = Vec2::new(0., -215.);
 
+            let grid_coord: GridCoord =
+                grid_plugin::get_xy_coords_from_screen_space_position(&spawn_pos).into();
 
-    println!("player: {:?}, enemy: {:?}", player, enemy);
+            // spawn player entity
+            let player = cmd
+                .spawn_bundle(SpriteBundle {
+                    material: mat,
+                    transform: Transform::from_xyz(spawn_pos.x, spawn_pos.y, 0.),
+                    sprite: sprite.clone(),
+                    ..Default::default()
+                })
+                .insert(SpriteCollider::Dynamic)
+                .insert(grid_coord)
+                .insert(Velocity::default())
+                .insert(MovementSpeed(500.))
+                .insert(Self)
+                //.insert(Self {movement_speed: 500.})
+                .id();
+
+            log::trace!("player spawned: {:?}", player);
+        }
+    }
+
+    #[derive(Debug, Default)]
+    pub struct Enemy;
+
+    impl Enemy {
+        pub(super) fn spawn(cmd: &mut Commands, mats: &mut Res<Mats>) {
+            let sprite = grid_plugin::square_sprite();
+
+            let start_pos = Vec2::new(0., -12.);
+            let mat = mats.get("red");
+
+            let grid_coord: GridCoord =
+                grid_plugin::get_xy_coords_from_screen_space_position(&start_pos).into();
+
+            // spawn enemy entity
+            let enemy = cmd
+                .spawn_bundle(SpriteBundle {
+                    material: mat,
+                    transform: Transform::from_xyz(start_pos.x, start_pos.y, 0.),
+                    sprite: sprite.clone(),
+                    ..Default::default()
+                })
+                .insert(SpriteCollider::Dynamic)
+                .insert(grid_coord)
+                .insert(Velocity::default())
+                .insert(MovementSpeed(200.))
+                .insert(Self::default())
+                .id();
+
+            log::trace!("enemy spawned: {:?}", enemy);
+        }
+    }
 }

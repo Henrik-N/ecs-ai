@@ -1,3 +1,10 @@
+pub mod array2d;
+pub mod pathfinding;
+
+pub mod file_io;
+
+pub use array2d::Array2D;
+
 use bevy::math::{Vec2, Vec3};
 
 pub fn to_vec3(v: &Vec2) -> Vec3 {
