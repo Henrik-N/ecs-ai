@@ -15,14 +15,14 @@ pub enum GameState {
 pub struct Application;
 
 impl Plugin for Application {
-    fn build(&self, app: &mut AppBuilder) {
+    fn build(&self, app: &mut App) {
         app.add_state(GameState::BuildMap)
             .insert_resource(ClearColor(CLEAR_COLOR))
             .insert_resource(WindowDescriptor {
                 width: WINDOW_WIDTH,
                 height: WINDOW_HEIGHT,
                 title: "Yeet".to_owned(),
-                vsync: false,
+                vsync: true,
                 resizable: false,
                 decorations: true,
                 cursor_visible: true,

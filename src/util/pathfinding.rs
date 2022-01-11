@@ -94,34 +94,34 @@ impl PartialOrd for Node {
     }
 }
 
-pub fn path_find(from_pos: &Vec2, to_pos: &Vec2) {
-    let from: Vec2 = grid_plugin::block_position_to_screen_space_position(&from_pos);
-    let to: Vec2 = grid_plugin::block_position_to_screen_space_position(&to_pos);
-
-    let from_coord: GridCoord = grid_plugin::get_xy_coords_from_screen_space_position(&from).into();
-    let to_coord: GridCoord = grid_plugin::get_xy_coords_from_screen_space_position(&to).into();
-
-    let mut open_set = BinaryHeap::new();
-
-    open_set.push(Reverse(
-        // to make it a min-heap
-        Node::init_start(from_coord, to_coord),
-    ));
-
-    let mut closed_set = BinaryHeap::new();
-
-    while !open_set.is_empty() {
-        // get lowest_f_cost_node and move it to the closed_set
-        let lowest_f_cost: Reverse<Node> = open_set.pop().unwrap();
-        closed_set.push(Reverse(lowest_f_cost.clone()));
-
-        // TODO: find adjacent nodes
-        let lowest_f_cost_coords = lowest_f_cost.0.coord;
-
-        open_set.clear();
-    }
-
-    println!("From coords: {:?}", from_coord);
-    println!("To coords: {:?}", to_coord);
-    println!();
-}
+//pub fn path_find(from_pos: &Vec2, to_pos: &Vec2) {
+//    let from: Vec2 = grid_plugin::block_position_to_screen_space_position(&from_pos);
+//    let to: Vec2 = grid_plugin::block_position_to_screen_space_position(&to_pos);
+//
+//    let from_coord: GridCoord = grid_plugin::get_xy_coords_from_screen_space_position(&from).into();
+//    let to_coord: GridCoord = grid_plugin::get_xy_coords_from_screen_space_position(&to).into();
+//
+//    let mut open_set = BinaryHeap::new();
+//
+//    open_set.push(Reverse(
+//        // to make it a min-heap
+//        Node::init_start(from_coord, to_coord),
+//    ));
+//
+//    let mut closed_set = BinaryHeap::new();
+//
+//    while !open_set.is_empty() {
+//        // get lowest_f_cost_node and move it to the closed_set
+//        let lowest_f_cost: Reverse<Node> = open_set.pop().unwrap();
+//        closed_set.push(Reverse(lowest_f_cost.clone()));
+//
+//        // TODO: find adjacent nodes
+//        let lowest_f_cost_coords = lowest_f_cost.0.coord;
+//
+//        open_set.clear();
+//    }
+//
+//    println!("From coords: {:?}", from_coord);
+//    println!("To coords: {:?}", to_coord);
+//    println!();
+//}

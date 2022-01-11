@@ -1,4 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
+use std::iter::{Flatten, Map};
+use std::ops::Range;
 
 type Coord = (usize, usize);
 
@@ -15,19 +17,88 @@ pub struct Array2D<T: Clone> {
 impl<T: Clone + PartialEq> PartialEq for Array2D<T> {
     fn eq(&self, other: &Self) -> bool {
         // Rust's Vec<T>s may allocate a bit more than we tell it to. Compare only the part of the allocation we use,
-        //  as the garbage values we filled in at allocation may not be the same ones.
+        //  as the garbage values filled in at allocation may not be the same.
         let equal_dimensions = self.height == other.height && self.width == other.width;
+
+        if !equal_dimensions {
+            return false;
+        }
         let len = self.height * self.width;
         let equal_data = self.data[..len] == other.data[..len];
 
-        equal_dimensions && equal_data
+        equal_data
     }
 }
+
 impl<T: Clone + PartialEq> Eq for Array2D<T> {}
 
 impl<T: Clone> Array2D<T> {
+    // returns an iterator of the data in the order it is stored internally
     pub fn iter_data(&self) -> std::slice::Iter<T> {
         self.data.iter()
+    }
+
+    /// returns an iterator in order (0, 0), (1, 0), (2, 0), (0, 1)... (prioritize exhausting x)
+    pub fn iter_rows_first_enumerated(&self) -> impl Iterator<Item = (Coord, &T)> + '_ {
+        let height_range = 0..self.height;
+        let width_range = 0..self.width;
+
+        height_range
+            .map(move |y| {
+                width_range.clone().map(move |x| {
+                    let coord = (x, y);
+                    (coord, self.get(coord))
+                })
+            })
+            .flatten()
+            .into_iter()
+    }
+
+    /// returns an iterator in order (0, 0), (0, 1), (0, 2), (1, 0)... (prioritize exhausting y)
+    pub fn iter_cols_first_enumerated(&self) -> impl Iterator<Item = (Coord, &T)> + '_ {
+        let height_range = 0..self.height;
+        let width_range = 0..self.width;
+
+        width_range
+            .map(move |x| {
+                height_range.clone().map(move |y| {
+                    let coord = (x, y);
+                    (coord, self.get(coord))
+                })
+            })
+            .flatten()
+            .into_iter()
+    }
+}
+
+#[test]
+fn testy_yeah() {
+    let mut letter = 'a';
+
+    let mut moo = Array2D::new(10, 5, 'a');
+
+    let mut count: u8 = 'a' as u8;
+
+    for y in 0..5 {
+        for x in 0..10 {
+            moo.set((x, y), count as char);
+            count += 1;
+        }
+    }
+
+    moo.iter_rows_first_enumerated().for_each(|((x, y), c)| {
+        println!("x: {}, y: {}, c: {}", x, y, c);
+    });
+    //moo.iter_cols_first_enumerated().for_each(|((x, y), c)| {
+    //    println!("x: {}, y: {}, c: {}", x, y, c);
+    //});
+
+    println!("moo: {}", moo.to_string());
+}
+
+impl to_string::CharRepresentation for usize {
+    fn char_representation(&self) -> char {
+        self.to_string().chars().nth(0).unwrap()
     }
 }
 

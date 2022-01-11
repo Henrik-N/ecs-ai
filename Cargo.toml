@@ -8,7 +8,7 @@ edition = "2021"
 
 
 [dependencies]
-bevy = {version = "0.5" }
+bevy = {version = "0.6" }
 anyhow = { version = "1.0.45" }
 
 derive_more = { version = "0.99", features = ["deref", "deref_mut"] }

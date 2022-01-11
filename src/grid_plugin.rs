@@ -1,10 +1,10 @@
+use crate::grid_plugin;
 use crate::input::{MousePos, PlayerInputPlugin};
-use crate::{grid_plugin, Mats};
 use bevy::prelude::*;
 
 pub use resources::*;
 mod resources {
-    use crate::{GridCoord, Mats};
+    use crate::GridCoord;
     use bevy::prelude::*;
     use std::ops::Sub;
 
@@ -15,9 +15,10 @@ mod resources {
 
 pub use components::*;
 mod components {
+    use bevy::prelude::*;
     use std::ops::Sub;
 
-    #[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
+    #[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Component)]
     pub struct GridCoord {
         pub x: u32,
         pub y: u32,
@@ -44,74 +45,74 @@ mod components {
     }
 }
 
-pub use entities::*;
-mod entities {
-    use crate::{grid_plugin, Commands, Mats, Res, SpriteBundle, Transform};
+//pub use entities::*;
+//mod entities {
+//    use crate::{grid_plugin, Commands, Res, SpriteBundle, Transform};
+//    use bevy::prelude::*;
+//
+//    #[derive(Default, Component)]
+//    /// block shown when hovering around with the mouse over the grid
+//    pub struct PreviewWallBlock {
+//        pub enabled: bool,
+//    }
+//    impl PreviewWallBlock {
+//        pub(super) fn spawn(cmd: &mut Commands, mats: &Res<Mats>) {
+//            fn wall_sprite_bundle(cmd: &mut Commands, mats: &Res<Mats>) -> SpriteBundle {
+//                let wall_mat = mats.get("white");
+//                let square = grid_plugin::square_sprite(Color::WHITE);
+//
+//                SpriteBundle {
+//                    //material: wall_mat,
+//                    transform: Transform::from_xyz(0., 0., 0.),
+//                    sprite: square,
+//                    ..Default::default()
+//                }
+//            }
+//        }
+//    }
+//}
 
-    #[derive(Default)]
-    /// block shown when hovering around with the mouse over the grid
-    pub struct PreviewWallBlock {
-        pub enabled: bool,
-    }
-    impl PreviewWallBlock {
-        pub(super) fn spawn(cmd: &mut Commands, mats: &Res<Mats>) {
-            fn wall_sprite_bundle(cmd: &mut Commands, mats: &Res<Mats>) -> SpriteBundle {
-                let wall_mat = mats.get("white");
-                let square = grid_plugin::square_sprite();
+//pub struct GridPlugin;
+//impl GridPlugin {
+//    pub const DEPENDENCY: &'static str = "grid_plugin";
+//}
 
-                SpriteBundle {
-                    material: wall_mat,
-                    transform: Transform::from_xyz(0., 0., 0.),
-                    sprite: square,
-                    ..Default::default()
-                }
-            }
-        }
-    }
-}
+//impl Plugin for GridPlugin {
+//    fn build(&self, app: &mut App) {
+//        app.add_startup_system(Self::plugin_startup.system())
+//            .insert_resource(BlockedCoords::default())
+//            .add_system_set(
+//                SystemSet::new()
+//                    .label(Self::DEPENDENCY)
+//                    .after(PlayerInputPlugin::DEPENDENCY), //.with_system(Self::preview_wall_block_follow_mouse.system()),
+//            );
+//    }
+//}
 
-pub struct GridPlugin;
-impl GridPlugin {
-    pub const DEPENDENCY: &'static str = "grid_plugin";
-}
+//impl GridPlugin {
+//fn plugin_startup(mut cmd: Commands, mats: Res<Mats>) {
+//    PreviewWallBlock::spawn(&mut cmd, &mats);
+//}
 
-impl Plugin for GridPlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        app.add_startup_system(Self::plugin_startup.system())
-            .insert_resource(BlockedCoords::default())
-            .add_system_set(
-                SystemSet::new()
-                    .label(Self::DEPENDENCY)
-                    .after(PlayerInputPlugin::DEPENDENCY)
-                    .with_system(Self::preview_wall_block_follow_mouse.system()),
-            );
-    }
-}
+//fn preview_wall_block_follow_mouse(
+//    mouse_pos: Res<MousePos>,
+//    mut q: Query<(&mut Transform, &Sprite, &PreviewWallBlock)>,
+//) {
+//    if let Ok((mut transform, sprite, wall_block)) = q.single_mut() {
+//        if !wall_block.enabled {
+//            return;
+//        }
 
-impl GridPlugin {
-    fn plugin_startup(mut cmd: Commands, mats: Res<Mats>) {
-        PreviewWallBlock::spawn(&mut cmd, &mats);
-    }
+//        let xy_coords =
+//            grid_plugin::get_xy_coords_from_screen_space_position(&mouse_pos).into();
+//        let aligned_cords = grid_plugin::get_aligned_pos_from_coords(&xy_coords);
 
-    fn preview_wall_block_follow_mouse(
-        mouse_pos: Res<MousePos>,
-        mut q: Query<(&mut Transform, &Sprite, &PreviewWallBlock)>,
-    ) {
-        if let Ok((mut transform, sprite, wall_block)) = q.single_mut() {
-            if !wall_block.enabled {
-                return;
-            }
+//        let translation = Vec3::new(aligned_cords.x, aligned_cords.y, 0.);
 
-            let xy_coords =
-                grid_plugin::get_xy_coords_from_screen_space_position(&mouse_pos).into();
-            let aligned_cords = grid_plugin::get_aligned_pos_from_coords(&xy_coords);
-
-            let translation = Vec3::new(aligned_cords.x, aligned_cords.y, 0.);
-
-            transform.translation = translation;
-        }
-    }
-}
+//        transform.translation = translation;
+//    }
+//}
+//}
 
 use bevy::prelude::*;
 
@@ -149,8 +150,14 @@ pub fn get_aligned_pos_from_coords(xy_cords: &GridCoord) -> Vec2 {
     screen_space_position_to_block_position(&(x_pos, y_pos).into())
 }
 
-pub fn square_sprite() -> Sprite {
-    Sprite::new(Vec2::new(SQUARE_SIDE_SIZE, SQUARE_SIDE_SIZE))
+pub fn square_sprite(color: Color) -> Sprite {
+    Sprite {
+        custom_size: Some(Vec2::new(SQUARE_SIDE_SIZE, SQUARE_SIDE_SIZE)),
+        color,
+        ..Default::default()
+    }
+
+    //Sprite::new(Vec2::new(SQUARE_SIDE_SIZE, SQUARE_SIDE_SIZE))
 }
 
 pub fn is_coordinate_within_borders(coord: &GridCoord) -> bool {

@@ -43,22 +43,23 @@ mod events {
     pub struct MouseLeftEvent {
         pub mouse_pos: Vec2,
         pub shift_held: bool,
+        pub ctrl_held: bool,
     }
 
     pub struct MouseRightEvent {
         pub mouse_pos: Vec2,
         pub shift_held: bool,
+        pub ctrl_held: bool,
     }
 }
 
 pub struct PlayerInputPlugin;
-
 impl PlayerInputPlugin {
     pub const DEPENDENCY: &'static str = "player_input";
 }
 
 impl Plugin for PlayerInputPlugin {
-    fn build(&self, app: &mut AppBuilder) {
+    fn build(&self, app: &mut App) {
         app.insert_resource(AxisInput::default())
             .insert_resource(MousePos::default())
             .add_event::<MouseLeftEvent>()
@@ -66,23 +67,22 @@ impl Plugin for PlayerInputPlugin {
             .add_system_set(
                 SystemSet::new()
                     .label(Self::DEPENDENCY)
-                    .with_system(Self::axis_input.system())
-                    .with_system(Self::process_mouse_states.system()),
+                    .with_system(Self::axis_input_system)
+                    .with_system(Self::process_mouse_states_system),
             );
     }
 }
 
 impl PlayerInputPlugin {
-    fn process_mouse_states(
+    fn process_mouse_states_system(
         mut cursor_moved_events: EventReader<CursorMoved>,
         mut mouse_loc: ResMut<MousePos>,
         mouse_button_input: Res<Input<MouseButton>>,
         keyboard: Res<Input<KeyCode>>,
-
         mut mouse_left_event: EventWriter<MouseLeftEvent>,
-
         mut mouse_right_event: EventWriter<MouseRightEvent>,
     ) {
+        // update mouse position // todo: remove?
         for event in cursor_moved_events.iter() {
             let pos = event.position;
 
@@ -90,11 +90,13 @@ impl PlayerInputPlugin {
         }
 
         let shift_held = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
+        let ctrl_held = keyboard.pressed(KeyCode::LControl) || keyboard.pressed(KeyCode::RControl);
 
         if mouse_button_input.pressed(MouseButton::Left) {
             mouse_left_event.send(MouseLeftEvent {
                 mouse_pos: mouse_loc.0,
                 shift_held,
+                ctrl_held,
             })
         }
 
@@ -102,15 +104,12 @@ impl PlayerInputPlugin {
             mouse_right_event.send(MouseRightEvent {
                 mouse_pos: mouse_loc.0,
                 shift_held,
+                ctrl_held,
             })
         }
     }
 
-    fn axis_input(
-        keyboard_input: Res<Input<KeyCode>>,
-        mut axis_input: ResMut<AxisInput>,
-        mut q: Query<(&mut Velocity), With<Player>>,
-    ) {
+    fn axis_input_system(keyboard_input: Res<Input<KeyCode>>, mut axis_input: ResMut<AxisInput>) {
         axis_input.reset();
 
         if keyboard_input.pressed(KeyCode::A) {
