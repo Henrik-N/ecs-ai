@@ -1,6 +1,6 @@
 use crate::resources_and_components::{CollidedWith, CollisionData, SpriteCollider, Velocity};
 use crate::util::*;
-use crate::{grid_plugin, Enemy, MazeResource, Player};
+use crate::{grid_plugin, Enemy, MazeResource, Player, fixed_time_step_dependant_state};
 use anyhow::Result;
 use bevy::core::FixedTimestep;
 use bevy::ecs::schedule::ShouldRun;
@@ -34,86 +34,131 @@ pub enum Collider {
     Bullet,
 }
 
-fn player_collision_system(
+
+
+fn collision_system(
     mut cmd: Commands,
     maze: Res<MazeResource>,
     mut player: Query<(&mut Transform, &Collider), With<Player>>,
-    colliders: Query<(Entity, &Transform, &Collider), Without<Player>>,
+    enemies_and_walls: Query<(Entity, &Transform, &Collider), (Without<Bullet>, Without<Player>)>,
+    bullets: Query<(Entity, &Transform, &Collider), (With<Bullet>, Without<Player>)>,
 ) {
     let square_side_size = maze.square_block_side_length;
     let (mut player_transform, player_collider) = player.single_mut();
 
     let player_size = player_transform.scale.truncate() + square_side_size; // remove z
 
-    for (entity, transform, collider) in colliders.iter() {
-        let collision = collide(
-            player_transform.translation,
-            player_size,
-            transform.translation,
-            transform.scale.truncate() + square_side_size,
-        );
+    for (collided_entity, collided_transform, collided_collider) in enemies_and_walls.iter() {
+        // check collision against player
+        {
+            let collision = collide(
+                player_transform.translation,
+                player_size,
+                collided_transform.translation,
+                collided_transform.scale.truncate() + square_side_size,
+            );
 
-        if let Some(collision) = collision {
-            if let Collider::Enemy = *collider {
-                cmd.entity(entity).despawn();
-                //cmd.despawn_recusive(entity);
-            }
+            if collision.is_some() {
+                if let Collider::Enemy = *collided_collider {
+                    cmd.entity(collided_entity).despawn();
+                }
 
-            if let Collider::Solid = *collider {
-                log::warn!("GAME OVER!");
+                if let Collider::Solid = *collided_collider {
+                    log::warn!("GAME OVER!");
+                }
             }
         }
+
+        // check collision against a bullet
+        {
+            for (bullet_entity, bullet_transform, bullet_collider) in bullets.iter() {
+                let collision = collide(
+                    bullet_transform.translation,
+                    bullet_transform.scale.truncate() + square_side_size,
+                    collided_transform.translation,
+                    collided_transform.scale.truncate() + square_side_size,
+                );
+
+                if collision.is_some() {
+                    if let Collider::Enemy = *collided_collider {
+                        cmd.entity(collided_entity).despawn_recursive();
+                    }
+                    cmd.entity(bullet_entity).despawn_recursive();
+                }
+            }
+        }
+
     }
 }
 
-fn fireball_collision_system(
-    mut cmd: Commands,
-    walls: Res<MazeResource>,
-    mut player: Query<(&mut Transform, &Collider), With<Player>>,
-    colliders: Query<(Entity, &Transform, &Collider), Without<Player>>,
-) {
-}
+//fn bullets_collision_system(
+//    mut cmd: Commands,
+//    walls: Res<MazeResource>,
+//    bullets: Query<(Entity, &Transform, &Collider), With<Bullet>>,
+//    colliders: Query<(Entity, &Transform, &Collider), Without<Player>>,
+//) {
+//    for (bullet_entity, bullet_transform, bullet_collider) in bullets.iter() {
+//        let (bullet_translation, bullet_scale) = (bullet_transform.translation, bullet_transform.scale.truncate());
+//
+//        for (collided_entity, collided_transform, collided_collider) in colliders.iter() {
+//            let collision = collide(
+//                bullet_translation.clone(),
+//                bullet_scale.clone(),
+//                collided_transform.translation,
+//                collided_transform.scale.truncate()
+//            );
+//
+//            if let Some(_collision) = collision {
+//                cmd.entity(bullet_entity).despawn_recursive();
+//
+//                if let Collider::Enemy = *collided_collider {
+//                    cmd.entity(collided_entity).despawn_recursive();
+//                }
+//
+//                if let Collider::Solid = *collided_collider {
+//                    // nothing, just despawn
+//                }
+//            }
+//        }
+//
+//    }
+//}
 
 pub(crate) struct MovementPlugin;
 
 impl MovementPlugin {
     pub const DEPENDENCY: &'static str = "MovementPlugin";
 }
+const MOVEMENT_SYSTEM: &str = "movement_system";
+const UPDATE_VELOCITY_COMPONENTS: &str = "update vel comps";
 
-const UPDATE_VELOCITY_COMPONENTS: &'static str = "update vel comps";
-
-const TIME_STEP: f64 = 1.0 / 60.0;
+use crate::application::TIME_STEP;
 
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<Collisions>()
             .add_system_set(
+                    SystemSet::on_update(GameState::PlayGame)
+                        .after(PlayerInputPlugin::DEPENDENCY)
+                        .label(UPDATE_VELOCITY_COMPONENTS)
+                        .with_system(update_player_velocity_system)
+                        .with_system(update_enemy_velocities_system)
+                        //.with_system(movement_system),
+            )
+            .add_system_set(
                 SystemSet::on_update(GameState::PlayGame)
-                    .label(UPDATE_VELOCITY_COMPONENTS)
-                    .after(PlayerInputPlugin::DEPENDENCY)
-                    //.with_system(Self::update_player_velocity.system())
-                    .with_system(update_player_velocity_system)
-                    .with_system(update_enemy_velocities_system),
+                    .after(UPDATE_VELOCITY_COMPONENTS)
+                    .label(MOVEMENT_SYSTEM)
+                    .with_system(movement_system)
             )
             .add_system_set(
                 SystemSet::new()
-                    .with_run_criteria(
-                        // both fixed time step criteria and GameState::PlayGame
-                        FixedTimestep::step(TIME_STEP).chain(
-                            |In(input): In<ShouldRun>, state: Res<State<GameState>>| {
-                                if state.current() == &GameState::PlayGame {
-                                    input
-                                } else {
-                                    ShouldRun::No
-                                }
-                            },
-                        ),
+                    .with_run_criteria(fixed_time_step_dependant_state!(GameState::PlayGame)
+                        .after(MOVEMENT_SYSTEM)
                     )
-                    .label(Self::DEPENDENCY)
-                    .after(UPDATE_VELOCITY_COMPONENTS)
-                    .with_system(movement_system)
-                    .with_system(player_collision_system),
-            );
+                    .with_system(collision_system)
+            )
+        ;
     }
 }
 
@@ -208,6 +253,8 @@ use crate::input::{AxisInput, InputVelocity};
 use bevy::sprite::collide_aabb::{collide, Collision};
 use bevy::tasks::ComputeTaskPool;
 use bevy::utils::tracing::Instrument;
+use bevy::utils::tracing::instrument::WithSubscriber;
+use crate::battle::Bullet;
 
 #[derive(Debug)]
 pub struct Collisions(Vec<CollisionData>);
